@@ -85,11 +85,24 @@ class Command(BaseCommand):
         # then close with the applied summary.
         if result.plan is not None:
             self._report_plan(result.plan, applied=True)
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Authz schema applied: {result.added} Casbin policy row(s) added, {result.removed} removed."
-            )
-        )
+        self.stdout.write(self.style.SUCCESS(self._apply_summary(result)))
+
+    def _apply_summary(self, result) -> str:
+        """One-line recap of what apply wrote, across both layers.
+
+        Reports the Casbin ``p`` row counts and the definition-metadata counts
+        (roles/permissions/categories/grants) together, since either layer can
+        change on its own — a metadata-only edit writes 0 policy rows but is
+        still a real change the operator should see reflected here.
+        """
+        summary = f"Authz schema applied: {result.added} Casbin policy row(s) added, {result.removed} removed"
+
+        plan = result.plan
+        if plan is not None and not plan.definitions_unchanged:
+            parts = [f"{len(diff)} {label}" for label, diff in plan.definition_diffs if not diff.is_empty]
+            summary += f"; definition changes: {', '.join(parts)}"
+
+        return f"{summary}."
 
     def _report_plan(self, plan, *, applied: bool) -> None:
         """Print the change report (ADR 0018 §6).

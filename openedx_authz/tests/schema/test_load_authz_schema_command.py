@@ -68,8 +68,36 @@ class TestApplyMode:
         assert "role^old" in output
         assert "Definition changes - role (1)" in output
         assert "~ course_editor" in output
-        # And still closes with the applied summary.
-        assert "1 Casbin policy row(s) added, 1 removed" in output
+        # And still closes with the applied summary, now including definitions.
+        assert "1 Casbin policy row(s) added, 1 removed; definition changes: 1 role" in output
+
+    def test_apply_summary_counts_definition_changes_with_zero_policy_rows(self):
+        """A metadata-only apply writes 0 p rows but still recaps definitions."""
+        plan = ChangePlan(
+            added_rows=[],
+            removed_rows=[],
+            unchanged=False,
+            categories=DefinitionDiff(added=["course_content", "library"]),
+            roles=DefinitionDiff(updated=["course_editor"]),
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(added=0, removed=0, unchanged=False, plan=plan)
+            output = _run()
+
+        assert "0 Casbin policy row(s) added, 0 removed; definition changes: 2 category, 1 role" in output
+
+    def test_apply_summary_omits_definitions_when_unchanged(self):
+        """Row-only changes don't tack on an empty definition recap."""
+        plan = ChangePlan(
+            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            unchanged=False,
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(added=1, removed=0, unchanged=False, plan=plan)
+            output = _run()
+
+        assert "1 Casbin policy row(s) added, 0 removed." in output
+        assert "definition changes:" not in output
 
     def test_apply_reports_unchanged(self):
         with mock.patch(PIPELINE_PATH) as pipeline_cls:
