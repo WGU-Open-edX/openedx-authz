@@ -158,6 +158,9 @@ class ApplyResult:
     added: int = 0
     removed: int = 0
     unchanged: bool = False
+    # The change plan that was applied, so callers can report the same detailed
+    # policy-row and definition breakdown they would print for a dry run.
+    plan: ChangePlan | None = None
 
 
 def policy_row(role_id: str, permission_id: str, scope: str) -> PolicyRow:
@@ -337,6 +340,7 @@ class SchemaApplier:
             added=len(plan.added_rows),
             removed=len(plan.removed_rows),
             unchanged=plan.unchanged,
+            plan=plan,
         )
 
     # ---- helpers ----------------------------------------------------------

@@ -47,7 +47,29 @@ class TestApplyMode:
             output = _run()
 
         pipeline_cls.return_value.apply.assert_called_once_with(force=False)
-        assert "3 row(s) added, 1 removed" in output
+        assert "3 Casbin policy row(s) added, 1 removed" in output
+
+    def test_apply_prints_detailed_change_report(self):
+        """Apply prints the same breakdown as a dry run when a plan is attached."""
+        plan = ChangePlan(
+            added_rows=[PolicyRow("p", "role^r", "act^courses.view_course", "course-v1^*", "allow")],
+            removed_rows=[PolicyRow("p", "role^old", "act^courses.manage_tags", "course-v1^*", "allow")],
+            unchanged=False,
+            roles=DefinitionDiff(updated=["course_editor"]),
+        )
+        with mock.patch(PIPELINE_PATH) as pipeline_cls:
+            pipeline_cls.return_value.apply.return_value = ApplyResult(added=1, removed=1, unchanged=False, plan=plan)
+            output = _run()
+
+        # Detailed policy-row and definition sections, using past tense.
+        assert "Casbin policy rows added (1)" in output
+        assert "Casbin policy rows removed (1)" in output
+        assert "role^r" in output
+        assert "role^old" in output
+        assert "Definition changes - role (1)" in output
+        assert "~ course_editor" in output
+        # And still closes with the applied summary.
+        assert "1 Casbin policy row(s) added, 1 removed" in output
 
     def test_apply_reports_unchanged(self):
         with mock.patch(PIPELINE_PATH) as pipeline_cls:
@@ -92,8 +114,8 @@ class TestDryRunMode:
             pipeline_cls.return_value.plan.return_value = plan
             output = _run("--dry-run")
 
-        assert "Rows to add (1)" in output
-        assert "Rows to remove (1)" in output
+        assert "Casbin policy rows to add (1)" in output
+        assert "Casbin policy rows to remove (1)" in output
         assert "role^r" in output
         assert "role^old" in output
 
@@ -169,7 +191,7 @@ class TestDefinitionReport:
             pipeline_cls.return_value.plan.return_value = plan
             output = _run("--dry-run")
 
-        assert "Definitions unchanged." in output
+        assert "Role/permission/category definitions unchanged." in output
 
 
 class TestDirectoryOption:
@@ -180,9 +202,7 @@ class TestDirectoryOption:
             pipeline_cls.return_value.apply.return_value = ApplyResult(unchanged=True)
             _run("--dir", "pkg_a/authz/schema", "--dir", "pkg_b/authz/schema")
 
-        discovery_cls.assert_called_once_with(
-            explicit_directories=["pkg_a/authz/schema", "pkg_b/authz/schema"]
-        )
+        discovery_cls.assert_called_once_with(explicit_directories=["pkg_a/authz/schema", "pkg_b/authz/schema"])
         # The pipeline is built with that discovery instance.
         pipeline_cls.assert_called_once_with(discovery=discovery_cls.return_value)
 

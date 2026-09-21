@@ -69,7 +69,7 @@ class Command(BaseCommand):
         try:
             if options.get("dry_run"):
                 plan = pipeline.plan()
-                self._report_plan(plan)
+                self._report_plan(plan, applied=False)
                 return
 
             result = pipeline.apply(force=options.get("force", False))
@@ -78,27 +78,41 @@ class Command(BaseCommand):
 
         if result.unchanged:
             self.stdout.write(self.style.SUCCESS("Authz schema unchanged; no rows written."))
-        else:
-            self.stdout.write(
-                self.style.SUCCESS(f"Authz schema applied: {result.added} row(s) added, {result.removed} removed.")
-            )
+            return
 
-    def _report_plan(self, plan) -> None:
+        # Print the same detailed breakdown a dry run would, so an operator can
+        # see exactly which Casbin policy rows and definition records changed,
+        # then close with the applied summary.
+        if result.plan is not None:
+            self._report_plan(result.plan, applied=True)
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Authz schema applied: {result.added} Casbin policy row(s) added, {result.removed} removed."
+            )
+        )
+
+    def _report_plan(self, plan, *, applied: bool) -> None:
         """Print the change report (ADR 0018 §6).
 
-        Covers the definition tables as well as the policy rows: apply syncs
-        definitions even when no ``p`` row changes, so a metadata-only edit is a
-        real change the operator needs to see before it lands.
+        Covers the definition tables (roles, permissions, categories, and
+        role-permission grants) as well as the Casbin ``p`` policy rows. The two
+        are reported separately because they are distinct layers: apply syncs the
+        definition metadata even when no ``p`` row changes, so a metadata-only
+        edit is a real change the operator needs to see. ``applied`` only changes
+        the verb tense in the section headers (past tense once written).
         """
         if plan.unchanged:
             self.stdout.write(self.style.SUCCESS("Authz schema unchanged; nothing would be written."))
             return
 
-        self.stdout.write(f"Rows to add ({len(plan.added_rows)}):")
+        added_label = "added" if applied else "to add"
+        removed_label = "removed" if applied else "to remove"
+
+        self.stdout.write(f"Casbin policy rows {added_label} ({len(plan.added_rows)}):")
         for row in plan.added_rows:
             self.stdout.write(f"  + {row.as_policy()}")
 
-        self.stdout.write(f"Rows to remove ({len(plan.removed_rows)}):")
+        self.stdout.write(f"Casbin policy rows {removed_label} ({len(plan.removed_rows)}):")
         for row in plan.removed_rows:
             self.stdout.write(f"  - {row.as_policy()}")
 
@@ -115,9 +129,14 @@ class Command(BaseCommand):
                 self.stdout.write(f"  ! {role} assigned to {subject}")
 
     def _report_definitions(self, plan) -> None:
-        """Print the definition-level changes, one section per kind."""
+        """Print the definition-metadata changes, one section per kind.
+
+        These are the role/permission/category/grant records, a separate layer
+        from the Casbin policy rows above: they can change on their own (e.g. a
+        display-name edit) without adding or removing any ``p`` row.
+        """
         if plan.definitions_unchanged:
-            self.stdout.write("Definitions unchanged.")
+            self.stdout.write("Role/permission/category definitions unchanged.")
             return
 
         for label, diff in plan.definition_diffs:
