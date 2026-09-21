@@ -66,6 +66,7 @@ Notes
 *******************
 
 Changed
+=======
 
 * Add assignments array to the response of GET /api/authz/v1/users/ endpoint.
 * Add ``assignments_limit`` query parameter (default 3, max 10) to control the number of inline assignments per user.
