@@ -63,6 +63,7 @@ class StoreSourcesTests(TestCase):
     """Persistence of compiled definitions and their provenance."""
 
     def test_definitions_are_persisted(self):
+        """Storing a document writes its roles, permissions, and grants to the DB."""
         _store(_core_doc())
         self.assertEqual(AuthzRoleDefinition.objects.count(), 1)
         self.assertEqual(AuthzPermissionDefinition.objects.count(), 3)
@@ -71,12 +72,18 @@ class StoreSourcesTests(TestCase):
         self.assertEqual(role_obj.role_permissions.count(), 2)
 
     def test_source_identity_is_distribution_and_module(self):
+        """A source row is keyed by its distribution and module, not its file path."""
         _store(_core_doc())
         source = AuthzSchemaSource.objects.get()
         self.assertEqual(source.distribution, "test-dist")
         self.assertEqual(source.module, "pkg.core")
 
     def test_extension_grant_attributed_to_module_not_core(self):
+        """A grant added by an extension records its own origin_kind and priority.
+
+        The base grant stays BASE while the extension-contributed grant is
+        marked EXTENSION with the extending module's priority.
+        """
         _store(_core_doc(), _module_extension_doc())
 
         # Both grants live on course_admin, with distinct origins.
@@ -97,11 +104,13 @@ class StoreSourcesTests(TestCase):
         self.assertEqual(view_link.origin_kind, OriginKind.BASE)
 
     def test_origin_query_helpers(self):
+        """The role- and permission-level origin helpers report the contributing distribution."""
         _store(_core_doc(), _module_extension_doc())
         self.assertEqual(origins_for_role("course_admin"), ["test-dist"])
         self.assertEqual(origins_for_permission("courses.export_course"), ["test-dist"])
 
     def test_store_is_idempotent(self):
+        """Re-storing the same documents leaves all row counts unchanged."""
         _store(_core_doc(), _module_extension_doc())
         counts = (
             AuthzRoleDefinition.objects.count(),
@@ -121,6 +130,7 @@ class StoreSourcesTests(TestCase):
         self.assertEqual(counts, counts_again)
 
     def test_metadata_change_updates_in_place(self):
+        """Re-storing with changed metadata updates the existing row instead of adding one."""
         _store(_core_doc())
         changed = make_document(
             "core",
@@ -142,6 +152,7 @@ class StoreSourcesTests(TestCase):
         )
 
     def test_moving_definition_between_files_keeps_single_source(self):
+        """Moving a definition to another file in the same module reuses its source row."""
         # Same module, different resource_path -> identity unchanged.
         doc_a = _core_doc()
         doc_b = make_document(
@@ -179,6 +190,7 @@ class SourceGranularityTests(TestCase):
         return document
 
     def test_multiple_files_in_one_module_share_one_source_row(self):
+        """Several files in one module collapse into a single source row."""
         roles_file = self._same_module("core", "roles.yaml", [role(rid="course_admin")])
         extra_file = self._same_module("core", "more_roles.yaml", [role(rid="course_auditor")])
 
@@ -206,6 +218,7 @@ class SourceGranularityTests(TestCase):
         self.assertNotEqual(source.content_digest, extra_file.source.content_digest)
 
     def test_distinct_modules_get_distinct_source_rows(self):
+        """Definitions from different modules produce separate source rows."""
         first = self._same_module("core", "roles.yaml", [role(rid="course_admin")])
         second = self._same_module("other", "roles.yaml", [role(rid="course_auditor")])
 
@@ -227,6 +240,7 @@ class SourceGranularityTests(TestCase):
         self.assertEqual(AuthzRoleSource.objects.filter(role=role_obj).count(), 2)
 
     def test_shared_grant_gains_a_source_link_per_module(self):
+        """A grant defined by two modules gets one source link per contributing module."""
         admin = [role(rid="course_admin", permissions=("courses.view_course",))]
         first = self._same_module("core", "roles.yaml", admin)
         second = self._same_module("other", "roles.yaml", admin)
@@ -238,6 +252,7 @@ class SourceGranularityTests(TestCase):
         self.assertEqual(sorted(origin_for_role_permission("course_admin", "courses.view_course")), ["test-dist"])
 
     def test_category_origins_are_queryable(self):
+        """The category origin helper reports the contributing distribution."""
         _store(_core_doc())
 
         self.assertEqual(origins_for_category("cat"), ["test-dist"])
@@ -259,6 +274,7 @@ class SourceGranularityTests(TestCase):
         self.assertTrue(AuthzRoleDefinition.objects.get(role_id="course_auditor").hidden)
 
     def test_hidden_flag_can_be_cleared(self):
+        """Re-storing a role with hidden=False clears a previously persisted hidden flag."""
         _store(self._same_module("core", "roles.yaml", [role(rid="course_auditor", hidden=True)]))
 
         _store(self._same_module("core", "roles.yaml", [role(rid="course_auditor", hidden=False)]))
@@ -270,6 +286,7 @@ class DefinitionDisplayTests(TestCase):
     """Human-readable identifiers used by the Django admin fallback (ADR 0018 §7)."""
 
     def test_source_string_is_distribution_and_module_path(self):
+        """A source renders as ``distribution:module/path`` for its id and str()."""
         _store(_core_doc())
 
         source = AuthzSchemaSource.objects.get()
@@ -277,6 +294,7 @@ class DefinitionDisplayTests(TestCase):
         self.assertEqual(str(source), "test-dist:pkg/core")
 
     def test_permission_string_is_its_complete_id(self):
+        """A permission renders as its full ``namespace.name`` identifier."""
         _store(_core_doc())
 
         perm = AuthzPermissionDefinition.objects.get(namespace="courses", name="view_course")
@@ -284,6 +302,7 @@ class DefinitionDisplayTests(TestCase):
         self.assertEqual(str(perm), "courses.view_course")
 
     def test_role_and_category_strings_are_their_stable_ids(self):
+        """Roles and categories render as their stable string ids."""
         _store(_core_doc())
 
         self.assertEqual(str(AuthzRoleDefinition.objects.get(role_id="course_admin")), "course_admin")
@@ -316,6 +335,7 @@ class DefensiveStorageTests(TestCase):
         self.assertEqual(AuthzRolePermission.objects.count(), 0)
 
     def test_permission_with_an_unknown_category_is_stored_uncategorized(self):
+        """A permission referencing a missing category is stored with no category."""
         document = make_document(
             "core",
             priority=100,
