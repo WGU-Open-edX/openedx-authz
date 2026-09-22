@@ -448,7 +448,10 @@ class SchemaApplier:
             ),
             "permissions": self._diff_kind(
                 {pid: compiled.definition for pid, compiled in schema.permissions.items()},
-                {f"{obj.namespace}.{obj.name}": obj for obj in m.AuthzPermissionDefinition.objects.all()},
+                {
+                    f"{obj.namespace}.{obj.name}": obj
+                    for obj in m.AuthzPermissionDefinition.objects.select_related("category")
+                },
                 lambda definition, obj: (
                     definition.display_name == obj.display_name
                     and (definition.description or "") == obj.description
