@@ -33,8 +33,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.engine.schema.types import (
-    ORIGIN_EXTENSION,
     CompiledSchema,
     SchemaDocument,
 )
@@ -203,8 +203,7 @@ class SchemaValidator:
                     issues.append(
                         ValidationIssue(
                             ERROR,
-                            f"Permission {permission.identifier} references unknown category "
-                            f"{permission.category!r}.",
+                            f"Permission {permission.identifier} references unknown category {permission.category!r}.",
                             sid,
                         )
                     )
@@ -333,9 +332,7 @@ class SchemaValidator:
         issues: list[ValidationIssue] = []
         for scope in scopes:
             if not SCOPE_RE.match(scope):
-                issues.append(
-                    ValidationIssue(ERROR, f"{context}: invalid scope namespace {scope!r}.", sid)
-                )
+                issues.append(ValidationIssue(ERROR, f"{context}: invalid scope namespace {scope!r}.", sid))
         return issues
 
     @staticmethod
@@ -353,7 +350,7 @@ class SchemaValidator:
         the file that declared the role.
         """
         relationships = schema.role_permission_sources.get((role_id, perm_id), [])
-        extensions = [rel for rel in relationships if rel.origin_kind == ORIGIN_EXTENSION]
+        extensions = [rel for rel in relationships if rel.origin_kind == SchemaOriginKind.EXTENSION]
         chosen = extensions or relationships
         if not chosen:
             return None

@@ -4,9 +4,9 @@ import logging
 
 import pytest
 
+from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.engine.schema.compilation import SchemaCompiler
 from openedx_authz.engine.schema.exceptions import SchemaCompileError
-from openedx_authz.engine.schema.types import ORIGIN_BASE, ORIGIN_EXTENSION
 
 from .factories import category, extension, make_document, make_source, permission, role
 
@@ -112,7 +112,7 @@ def test_base_permissions_get_base_provenance():
     schema = SchemaCompiler().compile([_base()])
     for perm in ("courses.view_course", "courses.manage_tags"):
         prov = schema.role_permission_sources[("course_editor", perm)]
-        assert [(rs.source.distribution, rs.origin_kind) for rs in prov] == [("test-dist", ORIGIN_BASE)]
+        assert [(rs.source.distribution, rs.origin_kind) for rs in prov] == [("test-dist", SchemaOriginKind.BASE)]
 
 
 def test_extension_grant_is_attributed_to_the_module_not_core():
@@ -125,8 +125,8 @@ def test_extension_grant_is_attributed_to_the_module_not_core():
     added = schema.role_permission_sources[("course_editor", "courses.export_course")]
 
     # Both permissions coexist on the role, but their origins remain distinct.
-    assert [rs.origin_kind for rs in core] == [ORIGIN_BASE]
-    assert [rs.origin_kind for rs in added] == [ORIGIN_EXTENSION]
+    assert [rs.origin_kind for rs in core] == [SchemaOriginKind.BASE]
+    assert [rs.origin_kind for rs in added] == [SchemaOriginKind.EXTENSION]
 
 
 def test_removed_permission_has_no_provenance():

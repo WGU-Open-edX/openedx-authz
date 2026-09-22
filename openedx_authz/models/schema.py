@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from django.db import models
 
+from openedx_authz.constants import SchemaOriginKind
+
 __all__ = [
     "OriginKind",
     "AuthzSchemaSource",
@@ -35,10 +37,16 @@ __all__ = [
 
 
 class OriginKind(models.TextChoices):
-    """Whether a contribution is a base definition or an extension (ADR 0023/0025)."""
+    """Whether a contribution is a base definition or an extension (ADR 0023/0025).
 
-    BASE = "base", "Base"
-    EXTENSION = "extension", "Extension"
+    Values are sourced from
+    :class:`openedx_authz.constants.SchemaOriginKind` so the persistence layer
+    and the (Django-free) engine schema types share a single source of truth;
+    the second tuple element is the human-readable label.
+    """
+
+    BASE = SchemaOriginKind.BASE.value, "Base"
+    EXTENSION = SchemaOriginKind.EXTENSION.value, "Extension"
 
 
 class AuthzSchemaSource(models.Model):
@@ -98,9 +106,7 @@ class AuthzPermissionCategory(models.Model):
     display_name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     icon = models.CharField(max_length=128, blank=True, null=True)
-    sources = models.ManyToManyField(
-        AuthzSchemaSource, through="AuthzCategorySource", related_name="categories"
-    )
+    sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzCategorySource", related_name="categories")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -133,9 +139,7 @@ class AuthzPermissionDefinition(models.Model):
     )
     scopes = models.JSONField(default=list)
     icon = models.CharField(max_length=128, blank=True, null=True)
-    sources = models.ManyToManyField(
-        AuthzSchemaSource, through="AuthzPermissionSource", related_name="permissions"
-    )
+    sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzPermissionSource", related_name="permissions")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -171,9 +175,7 @@ class AuthzRoleDefinition(models.Model):
     scopes = models.JSONField(default=list)
     icon = models.CharField(max_length=128, blank=True, null=True)
     hidden = models.BooleanField(default=False)
-    sources = models.ManyToManyField(
-        AuthzSchemaSource, through="AuthzRoleSource", related_name="roles"
-    )
+    sources = models.ManyToManyField(AuthzSchemaSource, through="AuthzRoleSource", related_name="roles")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -194,12 +196,8 @@ class AuthzRolePermission(models.Model):
     grant on the same role are distinct rows with distinct sources.
     """
 
-    role = models.ForeignKey(
-        AuthzRoleDefinition, on_delete=models.CASCADE, related_name="role_permissions"
-    )
-    permission = models.ForeignKey(
-        AuthzPermissionDefinition, on_delete=models.CASCADE, related_name="role_permissions"
-    )
+    role = models.ForeignKey(AuthzRoleDefinition, on_delete=models.CASCADE, related_name="role_permissions")
+    permission = models.ForeignKey(AuthzPermissionDefinition, on_delete=models.CASCADE, related_name="role_permissions")
     scope = models.CharField(
         max_length=255,
         help_text="Scope namespace where the grant applies (e.g. 'course-v1', 'lib').",
@@ -214,9 +212,7 @@ class AuthzRolePermission(models.Model):
         verbose_name = "Authz Role Permission"
         verbose_name_plural = "Authz Role Permissions"
         constraints = [
-            models.UniqueConstraint(
-                fields=["role", "permission", "scope"], name="authz_role_permission_uniq"
-            ),
+            models.UniqueConstraint(fields=["role", "permission", "scope"], name="authz_role_permission_uniq"),
         ]
 
     def __str__(self):
@@ -309,9 +305,7 @@ class AuthzRolePermissionSource(_BaseSourceLink):
         verbose_name = "Authz Role Permission Source"
         verbose_name_plural = "Authz Role Permission Sources"
         constraints = [
-            models.UniqueConstraint(
-                fields=["role_permission", "source"], name="authz_role_permission_source_uniq"
-            ),
+            models.UniqueConstraint(fields=["role_permission", "source"], name="authz_role_permission_source_uniq"),
         ]
 
 

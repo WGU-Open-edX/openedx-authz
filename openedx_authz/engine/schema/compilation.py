@@ -25,11 +25,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field, replace
+from typing import Literal
 
+from openedx_authz.constants import SchemaOriginKind
 from openedx_authz.engine.schema.exceptions import SchemaCompileError
 from openedx_authz.engine.schema.types import (
-    ORIGIN_BASE,
-    ORIGIN_EXTENSION,
     CompiledDefinition,
     CompiledSchema,
     RelationshipSource,
@@ -183,7 +183,7 @@ class SchemaCompiler:
 
             # Seed base provenance for every permission the role declares.
             provenance: dict[str, list[RelationshipSource]] = {
-                perm: [RelationshipSource(src, ORIGIN_BASE, base_priority) for src in base_sources]
+                perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
                 for perm in role.permissions
             }
 
@@ -278,7 +278,8 @@ class SchemaCompiler:
         """
         current = set(base)
         provenance: dict[str, list[RelationshipSource]] = {
-            perm: [RelationshipSource(src, ORIGIN_BASE, base_priority) for src in base_sources] for perm in base
+            perm: [RelationshipSource(src, SchemaOriginKind.BASE, base_priority) for src in base_sources]
+            for perm in base
         }
 
         actions: dict[str, list[tuple[str, int, SourceRecord]]] = {}
@@ -315,7 +316,7 @@ class SchemaCompiler:
                 current.add(perm)
                 provenance.setdefault(perm, [])
                 provenance[perm].extend(
-                    RelationshipSource(src, ORIGIN_EXTENSION, max_priority) for src in winning_sources
+                    RelationshipSource(src, SchemaOriginKind.EXTENSION, max_priority) for src in winning_sources
                 )
             else:  # remove
                 if perm not in current:
@@ -327,7 +328,9 @@ class SchemaCompiler:
 
     # ---- finalize ---------------------------------------------------------
 
-    def _finalize(self, tracked: dict[str, _Tracked], kind: str) -> dict[str, CompiledDefinition]:
+    def _finalize(
+        self, tracked: dict[str, _Tracked], kind: Literal["category", "permission", "role"]
+    ) -> dict[str, CompiledDefinition]:
         """Turn tracked definitions into CompiledDefinition entries."""
         return {
             identifier: CompiledDefinition(

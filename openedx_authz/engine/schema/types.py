@@ -16,6 +16,9 @@ unit-tested in isolation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
+
+from openedx_authz.constants import SchemaOriginKind
 
 # ---------------------------------------------------------------------------
 # Provenance
@@ -163,24 +166,20 @@ class SchemaDocument:
 # ---------------------------------------------------------------------------
 
 
-# Origin of a contribution to a role or a role-permission grant (ADR 0023/0025).
-ORIGIN_BASE = "base"
-ORIGIN_EXTENSION = "extension"
-
-
 @dataclass(frozen=True)
 class RelationshipSource:
     """Provenance of a single role-permission grant (ADR 0025).
 
     Attributes:
         source: The contributing source record.
-        origin_kind: ``ORIGIN_BASE`` (from the role's own definition) or
-            ``ORIGIN_EXTENSION`` (added by a ``role_extensions`` entry).
+        origin_kind: ``SchemaOriginKind.BASE`` (from the role's own definition)
+            or ``SchemaOriginKind.EXTENSION`` (added by a ``role_extensions``
+            entry).
         priority: The contributing file's priority.
     """
 
     source: SourceRecord
-    origin_kind: str
+    origin_kind: SchemaOriginKind
     priority: int
 
 
@@ -195,7 +194,7 @@ class CompiledDefinition:
         sources: All contributing sources, in priority-then-discovery order.
     """
 
-    kind: str
+    kind: Literal["category", "permission", "role"]
     key: str
     definition: object
     sources: tuple[SourceRecord, ...]
