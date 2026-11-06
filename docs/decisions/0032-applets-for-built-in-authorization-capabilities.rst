@@ -179,6 +179,17 @@ References
 * `ADR 0026`_
 * `ADR 0033`_
 
+Addendum: 2026-11-04
+********************
+
+Each applet keeps the permission and role constants it owns in one ``constants.py`` file. Clients import these constants from ``openedx_authz.authz``, while ``openedx_authz.constants.permissions`` and ``openedx_authz.constants.roles`` remain compatibility exports.
+
+``ActionData``, ``PermissionData``, and ``RoleData`` live in ``openedx_authz.data``. This keeps the dependency direction from ``openedx_authz.api.data`` to ``openedx_authz.authz``, then to the applet constants, and finally to the low-level data classes. It also avoids the circular import that previously required action and permission data classes to move below the public API layer in `commit 2b732c3`_.
+
+YAML remains the source of truth for role composition. Role constants identify roles without listing their permissions, so callers use the public API or the compiled schema to read a role's complete permission list.
+
+This addendum replaces the import paths, dependency direction, and role constant behavior described earlier in this decision. The :doc:`Built-In Python Constants <../references/built-in-constants>` reference documents the public imports.
+
 .. _Issue #484: https://github.com/openedx/openedx-authz/issues/484
 .. _PR #421: https://github.com/openedx/openedx-authz/pull/421
 .. _ADR 0005: 0005-architecture-and-data-modeling.rst
@@ -188,3 +199,4 @@ References
 .. _ADR 0023: 0023-extend-static-roles.rst
 .. _ADR 0026: 0026-rest-api-domain-ownership-boundary.rst
 .. _ADR 0033: 0033-shared-applet-for-course-team-roles.rst
+.. _commit 2b732c3: https://github.com/openedx/openedx-authz/commit/2b732c3560b6392b82a5f835e2bf254eefe70d7c

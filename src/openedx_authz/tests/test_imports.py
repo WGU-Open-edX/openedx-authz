@@ -1,7 +1,12 @@
 """Test module imports."""
 
+import subprocess
 import sys
+from importlib import import_module
 from unittest import TestCase
+
+from openedx_authz import authz
+from openedx_authz.constants import permissions, roles
 
 
 class TestImports(TestCase):
@@ -35,3 +40,75 @@ class TestImports(TestCase):
             self.assertIsNotNone(AuthzEnforcer)
         except ImportError as e:
             self.fail(f"Failed to import AuthzEnforcer: {e}")
+
+    def test_public_authz_api_reexports_built_in_constants(self):
+        """The public authz API and compatibility modules expose identical objects."""
+        self.assertIs(authz.VIEW_LIBRARY, permissions.VIEW_LIBRARY)
+        self.assertIs(authz.COURSE_ADMIN, roles.COURSE_ADMIN)
+
+    def test_public_modules_import_cleanly_in_any_order(self):
+        """Fresh interpreters can load public modules without circular imports."""
+        import_orders = (
+            ("openedx_authz.authz", "openedx_authz.api.data"),
+            ("openedx_authz.api.data", "openedx_authz.authz"),
+            ("openedx_authz.constants.permissions", "openedx_authz.constants.roles"),
+            ("openedx_authz.constants.roles", "openedx_authz.constants.permissions"),
+        )
+
+        for module_names in import_orders:
+            imports = "; ".join(f"import {module_name}" for module_name in module_names)
+            code = f"import django; django.setup(); {imports}"
+            with self.subTest(module_names=module_names):
+                result = subprocess.run(
+                    [sys.executable, "-c", code],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_applet_permission_constants_are_reexported(self):
+        """Existing permission imports refer to the objects owned by each applet."""
+        applet_constants = {
+            "openedx_authz.applets.content_libraries.constants": ("VIEW_LIBRARY",),
+            "openedx_authz.applets.course_authoring.constants": (
+                "COURSES_VIEW_COURSE",
+                "COURSES_VIEW_COURSE_TEAM",
+                "COURSES_MANAGE_COURSE_TEAM",
+            ),
+            "openedx_authz.applets.course_team_roles.constants": (
+                "COURSES_LEGACY_INSTRUCTOR_ROLE_PERMISSIONS",
+            ),
+        }
+
+        for module_name, names in applet_constants.items():
+            module = import_module(module_name)
+            for name in names:
+                with self.subTest(module=module_name, name=name):
+                    self.assertIs(getattr(permissions, name), getattr(module, name))
+
+    def test_content_library_roles_are_reexported(self):
+        """Existing Library role imports refer to the applet-owned role objects."""
+        applet_constants = import_module("openedx_authz.applets.content_libraries.constants")
+
+        for name in ("LIBRARY_ADMIN", "LIBRARY_AUTHOR", "LIBRARY_CONTRIBUTOR", "LIBRARY_USER"):
+            with self.subTest(name=name):
+                self.assertIs(getattr(roles, name), getattr(applet_constants, name))
+
+    def test_course_team_roles_are_reexported(self):
+        """Existing course role imports refer to the applet-owned role objects."""
+        applet_roles = import_module("openedx_authz.applets.course_team_roles.constants")
+
+        for name in (
+            "CCX_COACH",
+            "COURSE_ADMIN",
+            "COURSE_AUDITOR",
+            "COURSE_BETA_TESTER",
+            "COURSE_DATA_RESEARCHER",
+            "COURSE_EDITOR",
+            "COURSE_LIMITED_STAFF",
+            "COURSE_STAFF",
+            "LEGACY_COURSE_ROLE_EQUIVALENCES",
+        ):
+            with self.subTest(name=name):
+                self.assertIs(getattr(roles, name), getattr(applet_roles, name))
