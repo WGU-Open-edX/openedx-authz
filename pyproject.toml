@@ -116,6 +116,7 @@ test-base = [
     "coverage",
     "ddt",
     "polib",
+    "jsonschema",
     "pytest-cov",
     "pytest-django",
 ]
