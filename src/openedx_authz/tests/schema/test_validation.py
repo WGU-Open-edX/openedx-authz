@@ -120,6 +120,40 @@ class TestDuplicateSeverity:
 
         assert any("Conflicting role definition" in m for m in messages)
 
+    def test_permission_defined_with_different_dependencies_is_error(self):
+        """Only the defining file declares dependencies, so two files that disagree conflict (ADR 0034 §5)."""
+        first = make_document(
+            "first", categories=[category("cat")], permissions=[permission(depends_on=("courses.view_course_team",))]
+        )
+        second = make_document("second", permissions=[permission(depends_on=("courses.view_course_updates",))])
+
+        messages = [i.message for i in _errors(SchemaValidator().validate([first, second]))]
+
+        assert any("Conflicting permission definition for 'courses.view_course'" in m for m in messages)
+
+    def test_1_0_duplicate_of_a_permission_with_dependencies_is_error(self):
+        """A 1.0 file cannot declare ``depends_on``, so it cannot repeat a 1.1 definition that does."""
+        v1_0 = make_document("v1_0", categories=[category("cat")], permissions=[permission()])
+        v1_1 = make_document(
+            "v1_1", schema_version="1.1", permissions=[permission(depends_on=("courses.view_course_team",))]
+        )
+
+        messages = [i.message for i in _errors(SchemaValidator().validate([v1_0, v1_1]))]
+
+        assert any("Conflicting permission definition" in m for m in messages)
+
+    def test_identical_dependencies_are_an_identical_duplicate(self):
+        """Two files that define a permission with the same dependencies only warn."""
+        first = make_document(
+            "first", categories=[category("cat")], permissions=[permission(depends_on=("courses.view_course_team",))]
+        )
+        second = make_document("second", permissions=[permission(depends_on=("courses.view_course_team",))])
+
+        issues = SchemaValidator().validate([first, second])
+
+        assert not any("Conflicting" in i.message for i in _errors(issues))
+        assert any("Duplicate identical permission" in i.message for i in _warnings(issues))
+
     def test_warning_names_the_second_source(self):
         """The duplicate warning is attributed to the later contributing source."""
         first = make_document("first", categories=[category("cat")])

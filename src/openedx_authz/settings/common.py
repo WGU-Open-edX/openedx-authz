@@ -61,5 +61,7 @@ def plugin_settings(settings):
     if not hasattr(settings, "ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION"):
         settings.ENABLE_AUTOMATIC_AUTHZ_COURSE_AUTHORING_MIGRATION = False
 
+    # Set default OPENEDX_AUTHZ_JSON_SCHEMA if not already set.
+    # Maps each supported schema_version to the package-anchored JSON Schema that validates it.
     if not hasattr(settings, "OPENEDX_AUTHZ_JSON_SCHEMA"):
-        settings.OPENEDX_AUTHZ_JSON_SCHEMA = DEFAULT_AUTHZ_JSON_SCHEMA
+        settings.OPENEDX_AUTHZ_JSON_SCHEMA = dict(DEFAULT_AUTHZ_JSON_SCHEMA)

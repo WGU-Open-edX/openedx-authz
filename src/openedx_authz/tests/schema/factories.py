@@ -70,6 +70,7 @@ def permission(namespace="courses", name="view_course", *, cat="cat", scopes=("c
         category_id=cat,
         scopes=tuple(scopes),
         icon=kwargs.get("icon"),
+        depends_on=tuple(kwargs.get("depends_on", ())),
     )
 
 

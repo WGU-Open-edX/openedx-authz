@@ -3,7 +3,7 @@
 Generated Authorization Schema
 ##############################
 
-This page renders the exact validation rules from the :download:`authz JSON Schema <../../src/openedx_authz/engine/schema/authz-schema-v1.json>`. See the :doc:`Authorization Schema Reference <authorization-schema>` for guidance, examples, and validation performed by the compiler across schema contributions.
+This page renders the exact validation rules from the :download:`authz JSON Schema <../../src/openedx_authz/engine/schema/authz-schema-v1.json>` for schema version ``1.0``. The :download:`version 1.1 JSON Schema <../../src/openedx_authz/engine/schema/authz-schema-v1.1.json>` accepts the same fields and adds the ones listed under `Fields added in version 1.1`_. See the :doc:`Authorization Schema Reference <authorization-schema>` for guidance, examples, and validation performed by the compiler across schema contributions.
 
 Top-level fields
 ****************
@@ -115,4 +115,10 @@ Role extension fields
    :lift_description:
 
 .. jsonschema:: ../../src/openedx_authz/engine/schema/authz-schema-v1.json#/$defs/role_extension/properties/hidden
+   :lift_description:
+
+Fields added in version 1.1
+***************************
+
+.. jsonschema:: ../../src/openedx_authz/engine/schema/authz-schema-v1.1.json#/$defs/permission/properties/depends_on
    :lift_description:

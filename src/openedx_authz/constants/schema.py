@@ -11,9 +11,22 @@ either layer depending on the other.
 from __future__ import annotations
 
 from enum import Enum
+from types import MappingProxyType
 
 AUTHZ_JSON_SCHEMA_SETTING = "OPENEDX_AUTHZ_JSON_SCHEMA"
-DEFAULT_AUTHZ_JSON_SCHEMA = "openedx_authz.engine.schema/authz-schema-v1.json"
+
+AUTHZ_JSON_SCHEMA_V1_0 = "openedx_authz.engine.schema/authz-schema-v1.json"
+AUTHZ_JSON_SCHEMA_V1_1 = "openedx_authz.engine.schema/authz-schema-v1.1.json"
+
+# The JSON Schema that validates each supported ``schema_version`` (ADR 0034 §2). Each file is
+# validated against the JSON Schema of the version it declares, so files of different versions
+# can be loaded together.
+DEFAULT_AUTHZ_JSON_SCHEMA = MappingProxyType(
+    {
+        "1.0": AUTHZ_JSON_SCHEMA_V1_0,
+        "1.1": AUTHZ_JSON_SCHEMA_V1_1,
+    }
+)
 
 
 class SchemaOriginKind(str, Enum):
