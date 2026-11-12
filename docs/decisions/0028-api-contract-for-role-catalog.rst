@@ -409,7 +409,15 @@ References
 * `ADR 0025`_
 * `ADR 0029`_
 
+Addendum: 2026-11-11
+********************
+
+The deprecated ``course`` and ``library`` aliases of ``GET /api/authz/v1/scopes/`` were removed after the Admin Console migrated to ``course-v1`` and ``lib`` (`Issue #536`_). ``/scopes/`` and ``/roles/`` now accept only these values, and the short names are rejected as invalid choices.
+
+This addendum replaces the alias bullets in "Scope type naming" and the mention of the aliases in the consequences.
+
 .. _frontend-app-admin-console: https://github.com/openedx/frontend-app-admin-console
+.. _Issue #536: https://github.com/openedx/openedx-authz/issues/536
 .. _ADR 0020: 0020-authorization-schema-internationalization.rst
 .. _ADR 0021: 0021-authorization-definition-api.rst
 .. _ADR 0023: 0023-extend-static-roles.rst
