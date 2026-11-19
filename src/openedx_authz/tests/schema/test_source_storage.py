@@ -275,6 +275,28 @@ class TestSourceGranularity(TestCase):
 
         self.assertFalse(AuthzRoleDefinition.objects.get(role_id="course_auditor").hidden)
 
+    def test_category_and_permission_hidden_flags_reach_the_database(self):
+        """``hidden`` on categories and permissions is persisted and can be cleared."""
+
+        def doc(hidden):
+            return make_document(
+                "core",
+                priority=100,
+                categories=[category("cat", hidden=hidden)],
+                permissions=[permission(name="view_course", cat="cat", hidden=hidden)],
+                roles=[role(rid="course_admin", permissions=("courses.view_course",))],
+            )
+
+        _store(doc(True))
+
+        assert AuthzPermissionCategory.objects.get(category_id="cat").hidden
+        assert AuthzPermissionDefinition.objects.get(namespace="courses", name="view_course").hidden
+
+        _store(doc(False))
+
+        assert not AuthzPermissionCategory.objects.get(category_id="cat").hidden
+        assert not AuthzPermissionDefinition.objects.get(namespace="courses", name="view_course").hidden
+
 
 class TestDefinitionDisplay(TestCase):
     """Human-readable identifiers used by the Django admin fallback (ADR 0018 §7)."""

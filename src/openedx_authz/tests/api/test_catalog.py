@@ -35,7 +35,7 @@ class CatalogTestCase(TestCase):
         )
 
         cls.editor = AuthzRoleDefinition.objects.create(
-            role_id="editor", display_name="Editor", description="Edits", icon="Edit"
+            role_id="editor", display_name="Editor", description="Edits", icon="Edit", scopes=["course-v1", "lib"]
         )
         cls.hidden = AuthzRoleDefinition.objects.create(role_id="hidden_role", display_name="Hidden", hidden=True)
         cls.orphan = AuthzRoleDefinition.objects.create(role_id="orphan", display_name="Orphan")
@@ -78,6 +78,56 @@ class TestGetPermissionCatalog(CatalogTestCase):
             categories = [p.category for p in result]
 
         self.assertEqual(sorted(c.category_id for c in categories if c), ["content", "team"])
+
+
+class TestHiddenPermissionsAndCategories(CatalogTestCase):
+    """Hidden permissions and categories are left out of the catalog."""
+
+    def test_hidden_permission_is_excluded(self):
+        """A hidden permission is not in the permission catalog or in role details."""
+        AuthzPermissionDefinition.objects.filter(pk=self.view_course.pk).update(hidden=True)
+
+        assert [p.identifier for p in get_permission_catalog(["course-v1"])] == ["common.manage_team"]
+        (role,) = get_role_catalog(["course-v1"])
+        assert role["permissions"] == ["common.manage_team"]
+
+    def test_hidden_category_hides_its_permissions(self):
+        """Permissions of a hidden category are excluded even when they are not hidden themselves."""
+        AuthzPermissionCategory.objects.filter(pk=self.team.pk).update(hidden=True)
+
+        permissions = get_permission_catalog(["course-v1", "lib"])
+
+        assert [p.identifier for p in permissions] == ["content_libraries.view_library", "courses.view_course"]
+        assert [c.category_id for c in get_category_catalog(permissions)] == ["content"]
+        (role,) = get_role_catalog(["course-v1", "lib"])
+        assert role["permissions"] == ["content_libraries.view_library", "courses.view_course"]
+
+    def test_category_with_only_hidden_permissions_is_excluded(self):
+        """A visible category whose permissions are all hidden is not returned."""
+        AuthzPermissionDefinition.objects.filter(pk=self.view_course.pk).update(hidden=True)
+
+        categories = get_category_catalog(get_permission_catalog(["course-v1"]))
+
+        assert [c.category_id for c in categories] == ["team"]
+
+    def test_role_with_only_hidden_permissions_keeps_scope_types(self):
+        """A role whose grants are all hidden is listed with no permissions but its scope types."""
+        AuthzPermissionDefinition.objects.filter(pk=self.view_course.pk).update(hidden=True)
+        only_hidden = AuthzRoleDefinition.objects.create(
+            role_id="only_hidden", display_name="Only hidden", scopes=["course-v1"]
+        )
+        AuthzRolePermission.objects.create(role=only_hidden, permission=self.view_course, scope="course-v1")
+
+        role = next(r for r in get_role_catalog(["course-v1"]) if r["role"] == "only_hidden")
+
+        assert role["permissions"] == []
+        assert role["scope_types"] == ["course-v1"]
+
+    def test_hiding_keeps_grants(self):
+        """Hiding a permission does not remove its role grants."""
+        AuthzPermissionDefinition.objects.filter(pk=self.view_course.pk).update(hidden=True)
+
+        assert AuthzRolePermission.objects.filter(permission=self.view_course).exists()
 
 
 class TestGetCategoryCatalog(CatalogTestCase):
