@@ -194,6 +194,36 @@ The complete ID is ``content_libraries.manage_library_tags``. Role definitions, 
 
 The Casbin form ``act^content_libraries.manage_library_tags`` is an internal value and is not valid in a schema file.
 
+Permission dependencies
+=======================
+
+A permission declares the permissions it directly requires in ``depends_on``. For example, editing library content requires viewing the library:
+
+.. code-block:: yaml
+
+   schema_version: "1.1"
+   priority: 100
+
+   permissions:
+     - namespace: content_libraries
+       name: edit_library_content
+       display_name: Edit library content
+       description: Create, edit, and delete content in a content library.
+       category_id: library_content
+       scopes:
+         - lib
+       depends_on:
+         - content_libraries.view_library
+
+Validation rejects a schema when:
+
+* a dependency is not a permission defined in the combined schema;
+* a permission depends on itself, or permissions depend on each other in a cycle;
+* a dependency does not support every scope of the permission that depends on it; or
+* a role, after role extensions are applied, grants a permission without all of its direct and indirect dependencies.
+
+The last rule applies to roles and role extensions in every file, whatever ``schema_version`` the file declares. If a ``1.1`` file adds ``depends_on`` to a permission, every role that grants that permission must also list its dependencies.
+
 Roles
 *****
 
@@ -212,7 +242,7 @@ A role contains these fields:
    The scope namespaces where the role can be assigned. Every permission listed by the role must support those scopes.
 
 ``permissions``
-   A list of complete permission IDs. The compiler does not infer one permission from another, so the role lists every permission it needs.
+   A list of complete permission IDs. The role lists every permission it needs, including every direct and indirect dependency of those permissions (see `Permission dependencies`_).
 
 ``icon``
    An optional, case-sensitive icon name exported by ``@openedx/paragon/icons``.
@@ -276,7 +306,7 @@ For example, a deployment can allow course editors to export courses, remove the
      - role_id: course_auditor
        hidden: true
 
-An extension fails validation when its target role or a referenced permission does not exist. Adding a permission already assigned to the role or removing one the role does not have produces a warning and leaves the result unchanged.
+An extension fails validation when its target role or a referenced permission does not exist. It also fails when the resulting role grants a permission without its dependencies: an extension that adds a permission must also add the dependencies the role lacks, and ``remove_permissions`` cannot remove a dependency that another permission on the role still needs. Adding a permission already assigned to the role or removing one the role does not have produces a warning and leaves the result unchanged.
 
 Identifier rules
 ****************
