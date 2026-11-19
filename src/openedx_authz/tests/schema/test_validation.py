@@ -372,6 +372,218 @@ class TestValidateCompiled:
         assert [i.source_id for i in issues] == [None]
 
 
+def lib_permission(name, *, depends_on=(), scopes=("lib",)):
+    """Build a content library permission for dependency tests."""
+    return permission("content_libraries", name, cat="cat", scopes=scopes, depends_on=depends_on)
+
+
+LIB_VIEW = "content_libraries.view_library"
+LIB_EDIT = "content_libraries.edit_library_content"
+LIB_TAGS = "content_libraries.manage_library_tags"
+
+LIBRARY_PERMISSIONS = [
+    lib_permission("view_library"),
+    lib_permission("edit_library_content", depends_on=(LIB_VIEW,)),
+    lib_permission("manage_library_tags", depends_on=(LIB_EDIT,)),
+]
+
+
+class TestPermissionDependencyRules:
+    """Whole-set checks on ``depends_on`` entries (ADR 0034 §3)."""
+
+    @staticmethod
+    def _messages(*permissions):
+        """Return the whole-set errors for one 1.1 file that defines the given permissions."""
+        document = make_document(
+            "perms", schema_version="1.1", categories=[category("cat")], permissions=list(permissions)
+        )
+        return [i.message for i in _errors(SchemaValidator().validate([document]))]
+
+    def test_valid_dependencies_pass(self):
+        """Dependencies on defined permissions with covering scopes and no cycle are valid."""
+        assert not self._messages(*LIBRARY_PERMISSIONS)
+
+    def test_dependency_on_an_undefined_permission_is_error(self):
+        """A dependency must reference a permission defined in the combined schema."""
+        messages = self._messages(lib_permission("edit_library_content", depends_on=(LIB_VIEW,)))
+
+        assert messages == [f"Permission {LIB_EDIT} depends on unknown permission '{LIB_VIEW}'."]
+
+    def test_dependency_defined_in_another_file_is_valid(self):
+        """Dependencies resolve across files, like role permissions do."""
+        first = make_document("first", categories=[category("cat")], permissions=[lib_permission("view_library")])
+        second = make_document(
+            "second", schema_version="1.1", permissions=[lib_permission("edit_library_content", depends_on=(LIB_VIEW,))]
+        )
+
+        assert not _errors(SchemaValidator().validate([first, second]))
+
+    def test_self_dependency_is_error(self):
+        """A permission cannot depend on itself."""
+        messages = self._messages(lib_permission("view_library", depends_on=(LIB_VIEW,)))
+
+        assert messages == [f"Permission {LIB_VIEW} depends on itself."]
+
+    def test_dependency_cycle_is_error(self):
+        """Permissions that depend on each other, directly or through others, are rejected once."""
+        messages = self._messages(
+            lib_permission("view_library", depends_on=(LIB_TAGS,)),
+            lib_permission("edit_library_content", depends_on=(LIB_VIEW,)),
+            lib_permission("manage_library_tags", depends_on=(LIB_EDIT,)),
+        )
+
+        assert messages == [
+            f"Permissions form a dependency cycle: {LIB_EDIT} -> {LIB_VIEW} -> {LIB_TAGS} -> {LIB_EDIT}."
+        ]
+
+    def test_dependency_must_support_every_scope_of_the_dependent_permission(self):
+        """A dependency granted in fewer scopes would leave the permission unusable in the others."""
+        messages = self._messages(
+            lib_permission("view_library", scopes=("lib",)),
+            lib_permission("edit_library_content", depends_on=(LIB_VIEW,), scopes=("lib", "course-v1")),
+        )
+
+        assert messages == [
+            f"Permission {LIB_EDIT} supports scope(s) ['course-v1'] that its dependency '{LIB_VIEW}' does not support."
+        ]
+
+    def test_dependency_may_support_more_scopes(self):
+        """Only the dependent permission's scopes must be covered."""
+        assert not self._messages(
+            lib_permission("view_library", scopes=("lib", "course-v1")),
+            lib_permission("edit_library_content", depends_on=(LIB_VIEW,), scopes=("lib",)),
+        )
+
+    def test_error_names_the_file_that_defines_the_permission(self):
+        """Dependency errors point at the file that declares ``depends_on``."""
+        first = make_document("first", categories=[category("cat")], permissions=[lib_permission("view_library")])
+        second = make_document(
+            "second", schema_version="1.1", permissions=[lib_permission("edit_library_content", depends_on=(LIB_TAGS,))]
+        )
+
+        issues = _errors(SchemaValidator().validate([first, second]))
+
+        assert [i.source_id for i in issues] == [make_source("second").source_id]
+
+
+class TestRoleDependencyRule:
+    """A role must list every dependency of the permissions it grants (ADR 0034 §3).
+
+    The rule runs on the compiled schema, so it sees the effect of role extensions.
+    """
+
+    @staticmethod
+    def _messages(*documents):
+        schema = SchemaCompiler().compile(list(documents))
+        return [i.message for i in _errors(SchemaValidator().validate_compiled(schema))]
+
+    @staticmethod
+    def _base(role_permissions, *, schema_version="1.1"):
+        return make_document(
+            "base",
+            schema_version=schema_version,
+            categories=[category("cat")],
+            permissions=LIBRARY_PERMISSIONS,
+            roles=[role(rid="library_author", scopes=("lib",), permissions=role_permissions)],
+        )
+
+    def test_role_with_every_dependency_passes(self):
+        """Listing direct and indirect dependencies satisfies the rule."""
+        assert not self._messages(self._base((LIB_VIEW, LIB_EDIT, LIB_TAGS)))
+
+    def test_role_missing_a_direct_dependency_is_error(self):
+        """A role cannot grant a permission without the permissions it depends on."""
+        messages = self._messages(self._base((LIB_EDIT,)))
+
+        assert messages == [
+            f"Role library_author grants permission '{LIB_EDIT}' without its dependencies ['{LIB_VIEW}']. "
+            "Add them to the role, or keep role_extensions from removing them."
+        ]
+
+    def test_role_missing_an_indirect_dependency_is_error(self):
+        """Indirect dependencies count: ``manage_library_tags`` also needs ``view_library``."""
+        messages = self._messages(self._base((LIB_EDIT, LIB_TAGS)))
+
+        assert len(messages) == 2
+        assert all(f"['{LIB_VIEW}']" in message for message in messages)
+
+    def test_extension_that_adds_a_permission_without_its_dependencies_is_error(self):
+        """An extension's additions are checked against the role's resolved permissions."""
+        ext = make_document(
+            "ext", priority=200, role_extensions=[extension("library_author", add_permissions=(LIB_TAGS,))]
+        )
+
+        messages = self._messages(self._base((LIB_VIEW,)), ext)
+
+        assert len(messages) == 1
+        assert f"'{LIB_TAGS}' without its dependencies ['{LIB_EDIT}']" in messages[0]
+
+    def test_extension_that_adds_the_dependencies_too_passes(self):
+        """An extension can satisfy the rule by adding the dependencies it needs."""
+        ext = make_document(
+            "ext", priority=200, role_extensions=[extension("library_author", add_permissions=(LIB_EDIT, LIB_TAGS))]
+        )
+
+        assert not self._messages(self._base((LIB_VIEW,)), ext)
+
+    def test_extension_cannot_remove_a_dependency_another_permission_needs(self):
+        """``remove_permissions`` cannot drop ``view_library`` while the role keeps ``edit_library_content``."""
+        ext = make_document(
+            "ext", priority=200, role_extensions=[extension("library_author", remove_permissions=(LIB_VIEW,))]
+        )
+
+        messages = self._messages(self._base((LIB_VIEW, LIB_EDIT)), ext)
+
+        assert len(messages) == 1
+        assert f"'{LIB_EDIT}' without its dependencies ['{LIB_VIEW}']" in messages[0]
+
+    def test_extension_that_removes_a_permission_and_its_dependents_passes(self):
+        """Removing a dependency together with every permission that needs it keeps the role complete."""
+        ext = make_document(
+            "ext", priority=200, role_extensions=[extension("library_author", remove_permissions=(LIB_VIEW, LIB_EDIT))]
+        )
+
+        assert not self._messages(self._base((LIB_VIEW, LIB_EDIT)), ext)
+
+    def test_1_0_role_file_is_checked_against_dependencies_from_a_1_1_file(self):
+        """The rule applies to roles in every file, whatever ``schema_version`` it declares."""
+        permissions = make_document(
+            "permissions", schema_version="1.1", categories=[category("cat")], permissions=LIBRARY_PERMISSIONS
+        )
+        roles = make_document(
+            "roles",
+            schema_version="1.0",
+            roles=[role(rid="library_author", scopes=("lib",), permissions=(LIB_EDIT,))],
+        )
+
+        messages = self._messages(permissions, roles)
+
+        assert len(messages) == 1
+        assert f"'{LIB_EDIT}' without its dependencies ['{LIB_VIEW}']" in messages[0]
+
+    def test_error_names_the_file_that_grants_the_permission(self):
+        """The issue points at the file that grants the incomplete permission, here an extension."""
+        ext = make_document(
+            "ext", priority=200, role_extensions=[extension("library_author", add_permissions=(LIB_TAGS,))]
+        )
+
+        issues = _errors(SchemaValidator().validate_compiled(SchemaCompiler().compile([self._base((LIB_VIEW,)), ext])))
+
+        assert [i.source_id for i in issues] == [make_source("ext").source_id]
+
+    def test_hidden_role_is_checked_too(self):
+        """Hiding a role does not change what it grants, so the rule still applies."""
+        document = make_document(
+            "base",
+            schema_version="1.1",
+            categories=[category("cat")],
+            permissions=LIBRARY_PERMISSIONS,
+            roles=[role(rid="library_author", scopes=("lib",), permissions=(LIB_EDIT,), hidden=True)],
+        )
+
+        assert self._messages(document)
+
+
 class TestIconRules:
     """ADR 0017 §4: icon names must be valid @openedx/paragon/icons names."""
 
