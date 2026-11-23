@@ -27,6 +27,8 @@ Post-compile checks (after extensions and priority are resolved):
     * A role that ends up with a permission also ends up with all of its direct
       and indirect dependencies, whatever ``schema_version`` its files declare
       (ADR 0034 §3).
+    * A visible permission does not depend on a hidden permission or on a
+      permission in a hidden category.
 
 Validation collects issues rather than raising on the first problem, so the
 deployment report can list every error and warning at once. No Casbin imports.
@@ -101,6 +103,7 @@ class SchemaValidator:
             )
 
         issues.extend(self._check_role_dependencies(schema))
+        issues.extend(self._check_visible_dependencies(schema))
 
         return issues
 
@@ -270,6 +273,40 @@ class SchemaValidator:
                         f"Role {role_id} grants permission {perm_id!r} without its dependencies {list(absent)}. "
                         f"Add them to the role, or keep role_extensions from removing them.",
                         self._role_permission_source_id(schema, role_id, perm_id),
+                    )
+                )
+        return issues
+
+    @staticmethod
+    def _check_visible_dependencies(schema: CompiledSchema) -> list[ValidationIssue]:
+        """Reject visible permissions that depend on hidden ones, directly or indirectly.
+
+        A permission is hidden when it, or its category, is hidden (ADR 0038). Only direct
+        dependencies are checked, which also covers indirect ones: any chain from a visible
+        permission to a hidden one has a visible permission that directly depends on a hidden one.
+        Unknown dependencies and categories are skipped, since other checks report them.
+        """
+
+        def is_hidden(perm_id: str) -> bool | None:
+            compiled = schema.permissions.get(perm_id)
+            if compiled is None:
+                return None
+            category = schema.categories.get(compiled.definition.category_id)
+            return compiled.definition.hidden or bool(category and category.definition.hidden)
+
+        issues: list[ValidationIssue] = []
+        for perm_id, compiled in sorted(schema.permissions.items()):
+            if is_hidden(perm_id):
+                continue
+            hidden_dependencies = sorted(dep for dep in compiled.definition.depends_on if is_hidden(dep))
+            if hidden_dependencies:
+                sources = compiled.sources
+                issues.append(
+                    ValidationIssue(
+                        IssueLevel.ERROR,
+                        f"Visible permission {perm_id} depends on hidden permission(s) {hidden_dependencies}. "
+                        f"Hide the permission too, or make its dependencies visible.",
+                        sources[0].source_id if sources else None,
                     )
                 )
         return issues

@@ -219,7 +219,8 @@ Validation rejects a schema when:
 
 * a dependency is not a permission defined in the combined schema;
 * a permission depends on itself, or permissions depend on each other in a cycle;
-* a dependency does not support every scope of the permission that depends on it; or
+* a dependency does not support every scope of the permission that depends on it;
+* a visible permission depends on a hidden permission, or on a permission in a hidden category; or
 * a role, after role extensions are applied, grants a permission without all of its direct and indirect dependencies.
 
 The last rule applies to roles and role extensions in every file, whatever ``schema_version`` the file declares. If a ``1.1`` file adds ``depends_on`` to a permission, every role that grants that permission must also list its dependencies.
