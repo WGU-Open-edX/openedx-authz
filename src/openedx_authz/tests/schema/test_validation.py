@@ -584,6 +584,69 @@ class TestRoleDependencyRule:
         assert self._messages(document)
 
 
+class TestVisibleDependencyRule:
+    """A visible permission cannot depend on a hidden one (ADR 0038)."""
+
+    @staticmethod
+    def _issues(permissions, categories=(category("cat"), category("internal", hidden=True))):
+        document = make_document("base", schema_version="1.1", categories=list(categories), permissions=permissions)
+        return _errors(SchemaValidator().validate_compiled(SchemaCompiler().compile([document])))
+
+    def test_visible_permission_depending_on_hidden_permission_is_error(self):
+        """A visible permission cannot depend on a permission that sets ``hidden: true``."""
+        issues = self._issues(
+            [
+                permission("content_libraries", "view_library", scopes=("lib",), hidden=True),
+                lib_permission("edit_library_content", depends_on=(LIB_VIEW,)),
+            ]
+        )
+
+        assert [i.message for i in issues] == [
+            f"Visible permission {LIB_EDIT} depends on hidden permission(s) ['{LIB_VIEW}']. "
+            "Hide the permission too, or make its dependencies visible."
+        ]
+        assert issues[0].source_id == make_source("base").source_id
+
+    def test_dependency_in_hidden_category_is_error(self):
+        """A visible permission cannot depend on a permission whose category is hidden."""
+        issues = self._issues(
+            [
+                permission("content_libraries", "view_library", cat="internal", scopes=("lib",)),
+                lib_permission("edit_library_content", depends_on=(LIB_VIEW,)),
+            ]
+        )
+
+        assert len(issues) == 1
+        assert f"['{LIB_VIEW}']" in issues[0].message
+
+    def test_indirect_hidden_dependency_is_reported_on_the_direct_dependent(self):
+        """In ``tags -> edit -> view (hidden)``, only ``edit`` directly depends on the hidden permission."""
+        issues = self._issues(
+            [
+                permission("content_libraries", "view_library", scopes=("lib",), hidden=True),
+                lib_permission("edit_library_content", depends_on=(LIB_VIEW,)),
+                lib_permission("manage_library_tags", depends_on=(LIB_EDIT,)),
+            ]
+        )
+
+        assert len(issues) == 1
+        assert issues[0].message.startswith(f"Visible permission {LIB_EDIT} ")
+
+    def test_hidden_permission_may_depend_on_hidden_or_visible_permissions(self):
+        """Only visible permissions are constrained."""
+        assert not self._issues(
+            [
+                lib_permission("view_library"),
+                permission(
+                    "content_libraries", "edit_library_content", scopes=("lib",), hidden=True, depends_on=(LIB_VIEW,)
+                ),
+                permission(
+                    "content_libraries", "manage_library_tags", cat="internal", scopes=("lib",), depends_on=(LIB_EDIT,)
+                ),
+            ]
+        )
+
+
 class TestIconRules:
     """ADR 0017 §4: icon names must be valid @openedx/paragon/icons names."""
 
