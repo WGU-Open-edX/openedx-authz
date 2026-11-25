@@ -62,6 +62,9 @@ Added
   this package that redefines a content library permission must remove that definition, or declare
   the same ``depends_on`` in a ``1.1`` file; otherwise ``load_authz_schema`` reports a conflicting
   permission definition.
+* Each permission in the role catalog (``GET /api/authz/v1/roles/``) now lists its direct
+  dependencies in ``depends_on`` and its direct and indirect dependencies in ``all_depends_on``,
+  both sorted by ID (ADR 0034, ADR 0036). The catalog still uses a constant number of queries.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants
