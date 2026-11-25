@@ -225,6 +225,10 @@ Validation rejects a schema when:
 
 The last rule applies to roles and role extensions in every file, whatever ``schema_version`` the file declares. If a ``1.1`` file adds ``depends_on`` to a permission, every role that grants that permission must also list its dependencies.
 
+Only the file that defines a permission declares its dependencies. Another file that defines the same permission must declare the same ``depends_on``, which requires schema version ``1.1``. A ``1.0`` copy of a permission that declares dependencies is a conflicting definition.
+
+Each direct dependency is stored as a Casbin ``g2`` row, such as ``g2, act^content_libraries.edit_library_content, act^content_libraries.view_library``. Loading the schema adds, keeps and removes these rows the same way as the ``p`` rows of role grants: an existing ``g2`` row that matches a dependency is kept as is, and a ``g2`` row that no schema declares is left in place. A permission check that a role passes for a permission also passes for the permissions it depends on, so a role stored only in the database still works when it lacks a dependency.
+
 Roles
 *****
 
