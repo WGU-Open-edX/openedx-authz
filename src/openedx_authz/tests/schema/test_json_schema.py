@@ -22,12 +22,15 @@ def fixture_schema_validator():
 class TestSchemaVersionFiles:
     """Version 1.1 accepts everything 1.0 accepts and adds only ``depends_on`` (ADR 0034 §2)."""
 
-    def test_both_files_are_valid_json_schemas_with_their_own_version(self):
+    @pytest.mark.parametrize(
+        "filename,version",
+        [("authz-schema-v1.json", "1.0"), ("authz-schema-v1.1.json", "1.1")],
+    )
+    def test_file_is_a_valid_json_schema_with_its_own_version(self, filename, version):
         """Each file is a valid JSON Schema whose ``schema_version`` is a single constant."""
-        for filename, version in (("authz-schema-v1.json", "1.0"), ("authz-schema-v1.1.json", "1.1")):
-            schema = load_schema(filename)
-            Draft202012Validator.check_schema(schema)
-            assert schema["properties"]["schema_version"]["const"] == version
+        schema = load_schema(filename)
+        Draft202012Validator.check_schema(schema)
+        assert schema["properties"]["schema_version"]["const"] == version
 
     def test_1_1_differs_from_1_0_only_in_version_metadata_and_depends_on(self):
         """The fields both versions share stay identical, so the two files cannot drift apart."""

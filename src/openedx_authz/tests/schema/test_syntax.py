@@ -135,25 +135,29 @@ class TestSchemaSyntaxValidator:
         """``depends_on`` is a 1.1 field, so a 1.0 document that declares it is rejected (ADR 0034 §2)."""
         messages = validation_messages(permission_data(version="1.0", depends_on=["courses.view_course_team"]))
 
-        assert any("depends_on" in message for message in messages)
+        assert messages == ["$.permissions[0]: Additional properties are not allowed ('depends_on' was unexpected)"]
 
     def test_1_1_document_without_depends_on_is_valid(self):
         """``depends_on`` stays optional in 1.1."""
         assert not validation_messages(permission_data(version="1.1"))
 
     @pytest.mark.parametrize(
-        "depends_on",
+        "depends_on,expected",
         [
-            [],
-            ["courses"],
-            ["act^courses.view_course"],
-            ["courses.view_course_team", "courses.view_course_team"],
-            "courses.view_course_team",
+            ([], "$.permissions[0].depends_on: [] should be non-empty"),
+            (["courses"], "$.permissions[0].depends_on[0]: 'courses' does not match"),
+            (["act^courses.view_course"], "$.permissions[0].depends_on[0]: 'act^courses.view_course' does not match"),
+            (["courses.view_course_team", "courses.view_course_team"], "has non-unique elements"),
+            ("courses.view_course_team", "$.permissions[0].depends_on: 'courses.view_course_team' is not of type"),
         ],
     )
-    def test_depends_on_must_be_a_non_empty_list_of_unique_permission_ids(self, depends_on):
+    def test_depends_on_must_be_a_non_empty_list_of_unique_permission_ids(self, depends_on, expected):
         """``depends_on`` reuses the permission list shape: non-empty, unique, complete permission IDs."""
-        assert validation_messages(permission_data(version="1.1", depends_on=depends_on))
+        messages = validation_messages(permission_data(version="1.1", depends_on=depends_on))
+
+        assert len(messages) == 1
+        assert messages[0].startswith("$.permissions[0].depends_on")
+        assert expected in messages[0]
 
     def test_role_extension_cannot_declare_depends_on(self):
         """Only the file that defines a permission declares its dependencies (ADR 0034 §1)."""

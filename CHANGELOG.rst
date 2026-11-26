@@ -35,9 +35,6 @@ Added
   be loaded together. Validation rejects unknown dependencies, dependency cycles, dependencies that
   do not support the dependent permission's scopes, visible permissions that depend on hidden
   ones, and roles that grant a permission without all of its dependencies.
-* Replaced the ``OPENEDX_AUTHZ_JSON_SCHEMA`` setting with ``OPENEDX_AUTHZ_JSON_SCHEMAS``, which maps
-  ``schema_version`` values to JSON Schema resources. It overrides only the versions it lists, and
-  the built-in schemas cover the rest. Setting the old name raises ``ImproperlyConfigured``.
 * Added an optional ``hidden`` flag to permission categories and permissions in the authorization
   schema. Hidden permissions, and the permissions of hidden categories, are left out of the
   role and permission catalog, including each role's permission list, but keep their role grants
@@ -105,6 +102,9 @@ Changed
   return a 400 validation error, the same as ``/roles/``.
 * The role catalog now lists roles by display name by default, instead of by role identifier.
   Pass ``sort_by`` and ``order`` to choose another order.
+* Replaced the ``OPENEDX_AUTHZ_JSON_SCHEMA`` setting with ``OPENEDX_AUTHZ_JSON_SCHEMAS``, which maps
+  ``schema_version`` values to JSON Schema resources. It overrides only the versions it lists, and
+  the built-in schemas cover the rest. Setting the old name raises ``ImproperlyConfigured``.
 
 Removed
 =======

@@ -30,6 +30,8 @@ from openedx_authz.constants.schema import (
 from openedx_authz.engine.schema.issues import IssueLevel, ValidationIssue
 from openedx_authz.engine.schema.types import ParsedSchemaDocument
 
+_UNSET = object()
+
 
 def document_validator(schema_resource: str) -> Draft202012Validator:
     """Load an authorization validator from a package resource."""
@@ -40,9 +42,6 @@ def document_validator(schema_resource: str) -> Draft202012Validator:
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
-
-
-_UNSET = object()
 
 
 def _read_setting(name: str) -> object:
