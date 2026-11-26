@@ -3,8 +3,9 @@
 A permission's ``depends_on`` lists the permissions it directly requires. These
 helpers work on a plain mapping of permission ID to its direct dependencies, so
 schema validation and the Custom Roles API can apply the same rules to any set
-of permissions. ``dependency_map`` must include every permission that has
-dependencies: results for a partial map are incomplete, not an error.
+of permissions. The permissions passed in can be any subset, but
+``dependency_map`` must include every permission that has dependencies, not
+only the ones passed in: results for a partial map are incomplete, not an error.
 
 No Casbin or Django imports, so it stays unit-testable in isolation.
 """
@@ -24,7 +25,8 @@ def all_dependencies(permission_ids: Iterable[str], dependency_map: DependencyMa
     dependencies of its own to add. Cycles do not loop forever.
 
     Args:
-        permission_ids: Complete permission IDs (e.g., ``["content_libraries.edit_library_content"]``).
+        permission_ids: The permissions to resolve, as ``namespace.name`` IDs (e.g.,
+            ``["content_libraries.edit_library_content"]``). Any subset of permissions can be passed.
         dependency_map: Each permission ID mapped to the IDs of its direct dependencies.
 
     Returns:
@@ -48,7 +50,7 @@ def missing_dependencies(permission_ids: Iterable[str], dependency_map: Dependen
     direct and indirect dependency of each of its permissions.
 
     Args:
-        permission_ids: The complete permission IDs a role grants.
+        permission_ids: The ``namespace.name`` IDs of the permissions a role grants.
         dependency_map: Each permission ID mapped to the IDs of its direct dependencies.
 
     Returns:

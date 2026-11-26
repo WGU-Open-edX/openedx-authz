@@ -32,13 +32,16 @@ class TestAllDependencies:
         """A permission with no ``depends_on`` requires nothing else."""
         assert all_dependencies(["view_library"], LIBRARY_DEPENDENCIES) == set()
 
-    def test_given_permissions_are_not_included(self):
-        """The result lists what the given permissions need, not the permissions themselves."""
+    def test_given_permission_is_not_its_own_dependency(self):
+        """The result lists what a permission needs, not the permission itself."""
+        assert all_dependencies(["edit_library_content"], LIBRARY_DEPENDENCIES) == {"view_library"}
+
+    def test_given_permission_is_included_when_another_given_permission_depends_on_it(self):
+        """``delete_library`` depends on ``edit_library_content``, so it is in the result."""
         assert all_dependencies(["delete_library", "edit_library_content"], LIBRARY_DEPENDENCIES) == {
             "edit_library_content",
             "view_library",
         }
-        assert all_dependencies(["edit_library_content"], LIBRARY_DEPENDENCIES) == {"view_library"}
 
     def test_unknown_dependencies_are_included_but_not_followed(self):
         """A dependency missing from the map is still required, it just has no dependencies of its own."""
@@ -69,7 +72,9 @@ class TestMissingDependencies:
 
     def test_accepts_any_iterable(self):
         """Callers can pass tuples, sets or generators."""
-        assert missing_dependencies(iter(("edit_library_content",)), LIBRARY_DEPENDENCIES)
+        assert missing_dependencies(iter(("edit_library_content",)), LIBRARY_DEPENDENCIES) == {
+            "edit_library_content": ("view_library",)
+        }
 
 
 class TestFindCycles:

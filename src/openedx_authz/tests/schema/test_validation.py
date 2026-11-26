@@ -474,11 +474,13 @@ class TestRoleDependencyRule:
 
     @staticmethod
     def _messages(*documents):
+        """Compile the documents and return the messages of the errors found in the compiled schema."""
         schema = SchemaCompiler().compile(list(documents))
         return [i.message for i in _errors(SchemaValidator().validate_compiled(schema))]
 
     @staticmethod
     def _base(role_permissions, *, schema_version="1.1"):
+        """Build a document with the library permissions and a ``library_author`` role granting the given ones."""
         return make_document(
             "base",
             schema_version=schema_version,
@@ -581,7 +583,10 @@ class TestRoleDependencyRule:
             roles=[role(rid="library_author", scopes=("lib",), permissions=(LIB_EDIT,), hidden=True)],
         )
 
-        assert self._messages(document)
+        assert self._messages(document) == [
+            f"Role library_author grants permission '{LIB_EDIT}' without its dependencies ['{LIB_VIEW}']. "
+            "Add them to the role, or keep role_extensions from removing them."
+        ]
 
 
 class TestVisibleDependencyRule:
