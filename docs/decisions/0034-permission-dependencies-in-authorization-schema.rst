@@ -123,6 +123,15 @@ Addendum: Indirect Dependencies in the Catalog (2026-11-17)
 
 `ADR 0036`_ adds ``all_depends_on`` to each permission in the role catalog, next to ``depends_on``. It lists every direct and indirect dependency, so clients no longer compute indirect dependencies themselves. This replaces the last part of section 6.
 
+Addendum: Visible Permissions Cannot Depend on Hidden Ones (2026-11-26)
+=======================================================================
+
+Validation also rejects a visible permission that depends on a hidden one. A permission is hidden when it, or its category, is hidden (`ADR 0038`_). This adds a rule to section 3.
+
+The rule exists because hidden permissions are left out of the role catalog and a custom role cannot grant them. A custom role that grants the visible permission could never include its dependency, and the catalog would ask clients to select a permission it never lists.
+
+Only direct dependencies are checked. This also covers indirect ones, because any chain from a visible permission to a hidden one contains a visible permission that directly depends on a hidden one.
+
 Rejected Alternatives
 *********************
 
@@ -151,6 +160,7 @@ References
 * `ADR 0028`_
 * `ADR 0031`_
 * `ADR 0036`_
+* `ADR 0038`_
 * `Issue #91`_
 * `Issue #523`_
 * `PR #538`_
@@ -163,6 +173,7 @@ References
 .. _ADR 0028: 0028-api-contract-for-role-catalog.rst
 .. _ADR 0031: 0031-priority-applies-to-role-extensions-only.rst
 .. _ADR 0036: 0036-api-contract-for-custom-roles.rst
+.. _ADR 0038: 0038-hidden-permission-categories-and-permissions.rst
 .. _Issue #91: https://github.com/openedx/openedx-authz/issues/91
 .. _Issue #523: https://github.com/openedx/openedx-authz/issues/523
 .. _PR #538: https://github.com/openedx/openedx-authz/pull/538

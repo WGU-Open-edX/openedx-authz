@@ -594,6 +594,7 @@ class TestVisibleDependencyRule:
 
     @staticmethod
     def _issues(permissions, categories=(category("cat"), category("internal", hidden=True))):
+        """Compile one 1.1 document with the given permissions and return the errors in the compiled schema."""
         document = make_document("base", schema_version="1.1", categories=list(categories), permissions=permissions)
         return _errors(SchemaValidator().validate_compiled(SchemaCompiler().compile([document])))
 

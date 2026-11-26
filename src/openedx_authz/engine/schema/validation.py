@@ -286,19 +286,13 @@ class SchemaValidator:
         permission to a hidden one has a visible permission that directly depends on a hidden one.
         Unknown dependencies and categories are skipped, since other checks report them.
         """
-
-        def is_hidden(perm_id: str) -> bool | None:
-            compiled = schema.permissions.get(perm_id)
-            if compiled is None:
-                return None
-            category = schema.categories.get(compiled.definition.category_id)
-            return compiled.definition.hidden or bool(category and category.definition.hidden)
-
         issues: list[ValidationIssue] = []
         for perm_id, compiled in sorted(schema.permissions.items()):
-            if is_hidden(perm_id):
+            if SchemaValidator._is_hidden_permission(schema, perm_id):
                 continue
-            hidden_dependencies = sorted(dep for dep in compiled.definition.depends_on if is_hidden(dep))
+            hidden_dependencies = sorted(
+                dep for dep in compiled.definition.depends_on if SchemaValidator._is_hidden_permission(schema, dep)
+            )
             if hidden_dependencies:
                 sources = compiled.sources
                 issues.append(
@@ -310,6 +304,15 @@ class SchemaValidator:
                     )
                 )
         return issues
+
+    @staticmethod
+    def _is_hidden_permission(schema: CompiledSchema, perm_id: str) -> bool:
+        """Return whether a permission, or its category, is hidden. Unknown permissions are not hidden."""
+        compiled = schema.permissions.get(perm_id)
+        if compiled is None:
+            return False
+        category = schema.categories.get(compiled.definition.category_id)
+        return compiled.definition.hidden or bool(category and category.definition.hidden)
 
     @staticmethod
     def _register(index: dict, key: str, value, kind: str, sid: str) -> list[ValidationIssue]:
